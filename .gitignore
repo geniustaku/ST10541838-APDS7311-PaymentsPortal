@@ -1,0 +1,12 @@
+node_modules/
+.env
+.env.local
+backend/.env
+backend/ssl/
+customer-portal/dist/
+customer-portal/.env
+customer-portal/.env.local
+*.log
+.DS_Store
+.vscode/
+.idea/

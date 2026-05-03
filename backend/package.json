@@ -1,0 +1,26 @@
+{
+  "name": "apds7311-payments-portal-backend",
+  "version": "1.0.0",
+  "main": "server.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "build:client": "cd ../customer-portal && npm ci && npm run build",
+    "postinstall": "npm run build:client",
+    "test": "echo \"No tests specified\" && exit 0"
+  },
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.3.2",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.3",
+    "mssql": "^12.3.1"
+  }
+}
