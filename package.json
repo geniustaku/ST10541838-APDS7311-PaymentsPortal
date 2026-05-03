@@ -7,7 +7,7 @@
     "node": ">=20 <23"
   },
   "scripts": {
-    "start": "cd backend && npm start",
+    "start": "node backend/server.js",
     "dev:backend": "cd backend && node server.js",
     "dev:frontend": "cd customer-portal && npm run dev",
     "install:all": "cd backend && npm install && cd ../customer-portal && npm install",

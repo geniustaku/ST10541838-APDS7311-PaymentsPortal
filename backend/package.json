@@ -8,8 +8,6 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "build:client": "cd ../customer-portal && npm ci && npm run build",
-    "postinstall": "npm run build:client",
     "test": "echo \"No tests specified\" && exit 0"
   },
   "dependencies": {
