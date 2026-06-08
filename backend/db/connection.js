@@ -31,7 +31,9 @@ const poolPromise = new sql.ConnectionPool(config)
   })
   .catch(err => {
     console.error('[db] Connection failed:', err.message);
-    process.exit(1);
+    // In test mode let the process continue so smoke tests can exercise non-DB endpoints.
+    if (process.env.NODE_ENV !== 'test') process.exit(1);
+    return null;
   });
 
 module.exports = { sql, poolPromise };

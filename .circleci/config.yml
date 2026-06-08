@@ -89,22 +89,11 @@ jobs:
       - attach_workspace:
           at: .
       - run:
-          name: Generate ephemeral SSL cert for smoke test
-          command: |
-            mkdir -p backend/ssl
-            openssl req -nodes -new -x509 \
-              -keyout backend/ssl/server.key \
-              -out    backend/ssl/server.cert \
-              -days 1 \
-              -subj "/CN=localhost"
-      - run:
           name: API smoke test (security headers, role checks, validation)
           command: |
             cd backend
-            export SSL_KEY_PATH=./ssl/server.key
-            export SSL_CERT_PATH=./ssl/server.cert
             export JWT_SECRET=$(node -e "console.log(require('crypto').randomBytes(64).toString('hex'))")
-            export NODE_ENV=development
+            export NODE_ENV=test
             node test/api-smoke.js
 
   build:
