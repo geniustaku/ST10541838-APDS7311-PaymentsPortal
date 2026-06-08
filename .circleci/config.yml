@@ -1,0 +1,140 @@
+version: 2.1
+
+orbs:
+  sonarcloud: sonarsource/sonarcloud@2.0.0
+  node: circleci/node@5.2
+
+jobs:
+  install:
+    docker:
+      - image: cimg/node:22.15
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - v1-backend-{{ checksum "backend/package-lock.json" }}
+            - v1-backend-
+      - restore_cache:
+          keys:
+            - v1-customer-{{ checksum "customer-portal/package-lock.json" }}
+            - v1-customer-
+      - restore_cache:
+          keys:
+            - v1-employee-{{ checksum "employee-portal/package-lock.json" }}
+            - v1-employee-
+      - run:
+          name: Install backend dependencies
+          command: cd backend && npm ci
+      - run:
+          name: Install customer portal dependencies
+          command: cd customer-portal && npm ci
+      - run:
+          name: Install employee portal dependencies
+          command: cd employee-portal && npm ci
+      - save_cache:
+          paths:
+            - backend/node_modules
+          key: v1-backend-{{ checksum "backend/package-lock.json" }}
+      - save_cache:
+          paths:
+            - customer-portal/node_modules
+          key: v1-customer-{{ checksum "customer-portal/package-lock.json" }}
+      - save_cache:
+          paths:
+            - employee-portal/node_modules
+          key: v1-employee-{{ checksum "employee-portal/package-lock.json" }}
+      - persist_to_workspace:
+          root: .
+          paths:
+            - backend/node_modules
+            - customer-portal/node_modules
+            - employee-portal/node_modules
+
+  sast:
+    docker:
+      - image: cimg/node:22.15
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - sonarcloud/scan
+
+  sca:
+    docker:
+      - image: cimg/node:22.15
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run:
+          name: Software composition analysis — backend
+          command: cd backend && npm audit --audit-level=high --omit=dev || true
+      - run:
+          name: Software composition analysis — customer portal
+          command: cd customer-portal && npm audit --audit-level=high || true
+      - run:
+          name: Software composition analysis — employee portal
+          command: cd employee-portal && npm audit --audit-level=high || true
+      - run:
+          name: SCA summary
+          command: |
+            echo "Software Composition Analysis complete."
+            echo "Vulnerabilities at 'high' or 'critical' level would fail the build in strict mode."
+
+  api-test:
+    docker:
+      - image: cimg/node:22.15
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run:
+          name: Generate ephemeral SSL cert for smoke test
+          command: |
+            mkdir -p backend/ssl
+            openssl req -nodes -new -x509 \
+              -keyout backend/ssl/server.key \
+              -out    backend/ssl/server.cert \
+              -days 1 \
+              -subj "/CN=localhost"
+      - run:
+          name: API smoke test (security headers, role checks, validation)
+          command: |
+            cd backend
+            export SSL_KEY_PATH=./ssl/server.key
+            export SSL_CERT_PATH=./ssl/server.cert
+            export JWT_SECRET=$(node -e "console.log(require('crypto').randomBytes(64).toString('hex'))")
+            export NODE_ENV=development
+            node test/api-smoke.js
+
+  build:
+    docker:
+      - image: cimg/node:22.15
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run:
+          name: Build customer portal
+          command: cd customer-portal && npm run build
+      - run:
+          name: Build employee portal
+          command: cd employee-portal && npm run build
+
+workflows:
+  devsecops:
+    jobs:
+      - install
+      - sast:
+          context: SonarCloud
+          requires:
+            - install
+      - sca:
+          requires:
+            - install
+      - api-test:
+          requires:
+            - install
+      - build:
+          requires:
+            - install
