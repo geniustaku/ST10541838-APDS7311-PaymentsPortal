@@ -4,6 +4,8 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { sql, poolPromise } = require('../db/connection');
+const audit = require('../db/audit');
+const lockout = require('../db/lockout');
 
 // SECURITY: 12 bcrypt rounds. Each round doubles the time — makes offline brute force infeasible.
 const BCRYPT_ROUNDS = 12;
@@ -72,26 +74,38 @@ async function login(req, res) {
   try {
     const pool = await poolPromise;
 
-    // SECURITY (SQL injection): parameterised lookup by account number only.
     const result = await pool.request()
       .input('accountNumber', sql.NVarChar, accountNumber)
-      .query('SELECT CustomerId, FullName, AccountNumber, PasswordHash FROM Customers WHERE AccountNumber = @accountNumber');
+      .query(`SELECT CustomerId, FullName, AccountNumber, PasswordHash, FailedLoginCount, LockedUntil
+              FROM Customers WHERE AccountNumber = @accountNumber`);
 
     const customer = result.recordset[0];
 
-    // SECURITY: identical generic error for "user not found" and "wrong password".
-    // Prevents account enumeration — an attacker cannot learn which account numbers exist.
     if (!customer) {
+      await audit.record({ actor: `account:${accountNumber}`, action: 'login_failed', targetType: 'customer', req, notes: 'unknown account' });
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    // SECURITY: bcrypt.compare is constant-time to avoid timing attacks.
+    if (lockout.isLockedNow(customer)) {
+      await audit.record({ actor: `customer:${customer.AccountNumber}`, action: 'login_blocked', targetType: 'customer', targetId: customer.CustomerId, req, notes: 'account locked' });
+      return res.status(423).json({ error: 'Account temporarily locked. Try again later.' });
+    }
+
     const valid = await bcrypt.compare(password, customer.PasswordHash);
     if (!valid) {
+      const status = await lockout.registerFailure('Customers', customer.CustomerId);
+      await audit.record({
+        actor: `customer:${customer.AccountNumber}`,
+        action: status.locked ? 'login_lockout' : 'login_failed',
+        targetType: 'customer',
+        targetId: customer.CustomerId,
+        req
+      });
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    // Issue a signed JWT. Signature uses a 64-char secret from .env.
+    await lockout.clearFailures('Customers', customer.CustomerId);
+
     const token = jwt.sign(
       {
         customerId: customer.CustomerId,
@@ -104,17 +118,87 @@ async function login(req, res) {
     );
 
     setAuthCookie(res, token);
+    await audit.record({ actor: `customer:${customer.AccountNumber}`, action: 'login_success', targetType: 'customer', targetId: customer.CustomerId, req });
 
     return res.json({
       message: 'Login successful',
       user: {
         customerId: customer.CustomerId,
         fullName: customer.FullName,
-        accountNumber: customer.AccountNumber
+        accountNumber: customer.AccountNumber,
+        role: 'customer'
       }
     });
   } catch (err) {
     console.error('[login]', err.message);
+    return res.status(500).json({ error: 'Login failed' });
+  }
+}
+
+// POST /api/auth/employee/login
+async function employeeLogin(req, res) {
+  const { username, password } = req.body;
+
+  try {
+    const pool = await poolPromise;
+
+    const result = await pool.request()
+      .input('username', sql.NVarChar, username)
+      .query(`SELECT EmployeeId, FullName, Username, PasswordHash, Role, FailedLoginCount, LockedUntil
+              FROM Employees WHERE Username = @username`);
+
+    const employee = result.recordset[0];
+
+    if (!employee) {
+      await audit.record({ actor: `username:${username}`, action: 'login_failed', targetType: 'employee', req, notes: 'unknown user' });
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    if (lockout.isLockedNow(employee)) {
+      await audit.record({ actor: `employee:${employee.Username}`, action: 'login_blocked', targetType: 'employee', targetId: employee.EmployeeId, req, notes: 'account locked' });
+      return res.status(423).json({ error: 'Account temporarily locked. Try again later.' });
+    }
+
+    const valid = await bcrypt.compare(password, employee.PasswordHash);
+    if (!valid) {
+      const status = await lockout.registerFailure('Employees', employee.EmployeeId);
+      await audit.record({
+        actor: `employee:${employee.Username}`,
+        action: status.locked ? 'login_lockout' : 'login_failed',
+        targetType: 'employee',
+        targetId: employee.EmployeeId,
+        req
+      });
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    await lockout.clearFailures('Employees', employee.EmployeeId);
+
+    const token = jwt.sign(
+      {
+        employeeId: employee.EmployeeId,
+        username: employee.Username,
+        fullName: employee.FullName,
+        role: 'employee'
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: JWT_EXPIRY }
+    );
+
+    setAuthCookie(res, token);
+    await audit.record({ actor: `employee:${employee.Username}`, action: 'login_success', targetType: 'employee', targetId: employee.EmployeeId, req });
+
+    return res.json({
+      message: 'Login successful',
+      user: {
+        employeeId: employee.EmployeeId,
+        fullName: employee.FullName,
+        username: employee.Username,
+        role: 'employee'
+      }
+    });
+  } catch (err) {
+    console.error('[employeeLogin]', err.message);
     return res.status(500).json({ error: 'Login failed' });
   }
 }
@@ -135,4 +219,4 @@ async function me(req, res) {
   return res.json({ user: req.user });
 }
 
-module.exports = { register, login, logout, me };
+module.exports = { register, login, employeeLogin, logout, me };

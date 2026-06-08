@@ -6,6 +6,9 @@ backend/ssl/
 customer-portal/dist/
 customer-portal/.env
 customer-portal/.env.local
+employee-portal/dist/
+employee-portal/.env
+employee-portal/.env.local
 *.log
 .DS_Store
 .vscode/

@@ -75,9 +75,9 @@ Required Azure App Service application settings:
 | Key | Value |
 |-----|-------|
 | `NODE_ENV` | `production` |
-| `DB_SERVER` | `eduboard-server.database.windows.net` |
-| `DB_NAME` | `PaymentsPortalDb` |
-| `DB_USER` | `eduboard` |
+| `DB_SERVER` | (Azure SQL server hostname, set in Azure) |
+| `DB_NAME` | (Azure SQL database name, set in Azure) |
+| `DB_USER` | (set in Azure, never in repo) |
 | `DB_PASSWORD` | (set in Azure, never in repo) |
 | `JWT_SECRET` | 64+ char hex (set in Azure, never in repo) |
 | `WEBSITE_NODE_DEFAULT_VERSION` | `~20` |

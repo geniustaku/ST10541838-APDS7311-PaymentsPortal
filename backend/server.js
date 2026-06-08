@@ -19,7 +19,8 @@ const app = express();
 // SECURITY: same-origin means SameSite=Strict cookies work without exception, and we
 // avoid CORS entirely, which removes a class of misconfiguration risks.
 const isProd = process.env.NODE_ENV === 'production';
-const reactBuildDir = path.join(__dirname, '..', 'customer-portal', 'dist');
+const customerBuildDir = path.join(__dirname, '..', 'customer-portal', 'dist');
+const employeeBuildDir = path.join(__dirname, '..', 'employee-portal', 'dist');
 
 // 1. Trust the reverse proxy (Azure App Service terminates TLS in front of Node).
 app.set('trust proxy', 1);
@@ -57,8 +58,17 @@ app.use(cookieParser());
 // 4. CORS — only used in development where the React dev server runs on a different port.
 //    In production frontend and backend share an origin, so CORS is unnecessary.
 if (!isProd) {
+  const allowedOrigins = [
+    process.env.CUSTOMER_PORTAL_URL,
+    process.env.EMPLOYEE_PORTAL_URL
+  ].filter(Boolean);
+
   app.use(cors({
-    origin: process.env.CUSTOMER_PORTAL_URL,
+    origin: (origin, cb) => {
+      if (!origin) return cb(null, true);
+      if (allowedOrigins.includes(origin)) return cb(null, true);
+      return cb(new Error('Origin not allowed'));
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PATCH'],
     allowedHeaders: ['Content-Type']
@@ -75,12 +85,21 @@ app.use('/api/transactions', paymentLimiter, require('./routes/transactions'));
 // 7. Health check for Azure App Service warm-up probes.
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 
-// 8. Serve the React build in production. SPA fallback sends index.html for any non-API path.
-if (isProd && fs.existsSync(reactBuildDir)) {
-  app.use(express.static(reactBuildDir, { index: false }));
-  app.get(/^\/(?!api).*/, (req, res) => {
-    res.sendFile(path.join(reactBuildDir, 'index.html'));
-  });
+// 8. Serve both React builds in production. The employee SPA lives under /employee/*.
+if (isProd) {
+  if (fs.existsSync(employeeBuildDir)) {
+    app.use('/employee', express.static(employeeBuildDir, { index: false }));
+    app.get(/^\/employee(\/.*)?$/, (req, res) => {
+      res.sendFile(path.join(employeeBuildDir, 'index.html'));
+    });
+  }
+
+  if (fs.existsSync(customerBuildDir)) {
+    app.use(express.static(customerBuildDir, { index: false }));
+    app.get(/^\/(?!api|employee).*/, (req, res) => {
+      res.sendFile(path.join(customerBuildDir, 'index.html'));
+    });
+  }
 }
 
 // 9. 404 handler — no stack trace, no echoing of the path (prevents reflected XSS).

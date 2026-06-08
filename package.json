@@ -2,15 +2,17 @@
   "name": "apds7311-payments-portal",
   "version": "1.0.0",
   "private": true,
-  "description": "APDS7311 — Customer International Payments Portal — ST10541838",
+  "description": "APDS7311 Customer and Staff International Payments Portal",
   "engines": {
     "node": ">=20 <23"
   },
   "scripts": {
     "start": "node backend/server.js",
     "dev:backend": "cd backend && node server.js",
-    "dev:frontend": "cd customer-portal && npm run dev",
-    "install:all": "cd backend && npm install && cd ../customer-portal && npm install",
-    "build:client": "cd customer-portal && npm ci && npm run build"
+    "dev:customer": "cd customer-portal && npm run dev",
+    "dev:employee": "cd employee-portal && npm run dev",
+    "install:all": "cd backend && npm install && cd ../customer-portal && npm install && cd ../employee-portal && npm install",
+    "build:all": "cd customer-portal && npm ci && npm run build && cd ../employee-portal && npm ci && npm run build",
+    "seed:employees": "cd backend && node db/seed.js"
   }
 }

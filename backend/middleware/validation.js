@@ -21,7 +21,11 @@ const patterns = {
   // SWIFT/BIC code: 8 or 11 chars (6 letters + 2 alnum + optional 3 alnum).
   swiftCode:     /^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$/,
   // Provider: only SWIFT for now.
-  provider:      /^(SWIFT)$/
+  provider:      /^(SWIFT)$/,
+  // Employee username: letters, digits, underscore, 3-20 chars.
+  username:      /^[a-zA-Z0-9_]{3,20}$/,
+  // Verification note: printable ASCII without injection-prone characters, up to 500 chars.
+  note:          /^[A-Za-z0-9 .,\-_:/()'"@#]{0,500}$/
 };
 
 // Factory: returns an Express middleware that validates every field in `required`.

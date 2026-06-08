@@ -1,24 +1,38 @@
-// routes/transactions.js
-// Task 2: only the customer-side create-payment endpoint.
-// Task 3 will add GET list, PATCH verify and POST submit-to-SWIFT (employee-only).
-
 const express = require('express');
 const router = express.Router();
 
-const { create, listMine } = require('../controllers/transactionController');
+const {
+  create,
+  listMine,
+  listForEmployee,
+  verify,
+  submitToSwift,
+  recentAudit,
+  listCustomers,
+  getCustomer,
+  listEmployees
+} = require('../controllers/transactionController');
 const { validateBody } = require('../middleware/validation');
-const { requireCustomer } = require('../middleware/auth');
+const { requireCustomer, requireEmployee } = require('../middleware/auth');
 
-// GET /api/transactions/mine — list only the logged-in customer's transactions
-// SECURITY: requireCustomer enforces a valid JWT cookie; controller scopes by customerId from the token.
+// Customer routes
 router.get('/mine', requireCustomer, listMine);
-
-// POST /api/transactions — customer pays
 router.post(
   '/',
   requireCustomer,
   validateBody(['amount', 'currency', 'provider', 'payeeAccount', 'swiftCode']),
   create
 );
+
+// Employee transaction routes
+router.get('/', requireEmployee, listForEmployee);
+router.patch('/:id/verify', requireEmployee, verify);
+router.post('/submit', requireEmployee, submitToSwift);
+router.get('/audit/recent', requireEmployee, recentAudit);
+
+// Employee operations routes
+router.get('/customers',     requireEmployee, listCustomers);
+router.get('/customers/:id', requireEmployee, getCustomer);
+router.get('/employees',     requireEmployee, listEmployees);
 
 module.exports = router;
