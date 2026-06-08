@@ -53,11 +53,19 @@ jobs:
   sast:
     docker:
       - image: cimg/node:22.15
+    resource_class: large
     steps:
       - checkout
       - attach_workspace:
           at: .
-      - sonarcloud/scan
+      - run:
+          name: SonarCloud scan
+          no_output_timeout: 20m
+          command: |
+            curl -sSLo /tmp/sonar.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-5.0.1.3006-linux.zip
+            unzip -q /tmp/sonar.zip -d /tmp
+            /tmp/sonar-scanner-5.0.1.3006-linux/bin/sonar-scanner \
+              -Dsonar.token=$SONAR_TOKEN
 
   sca:
     docker:
