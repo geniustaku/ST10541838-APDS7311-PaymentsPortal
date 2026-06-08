@@ -59,13 +59,23 @@ jobs:
       - attach_workspace:
           at: .
       - run:
-          name: SonarCloud scan
-          no_output_timeout: 20m
+          name: Download SonarScanner
           command: |
             curl -sSLo /tmp/sonar.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-5.0.1.3006-linux.zip
             unzip -q /tmp/sonar.zip -d /tmp
+      - run:
+          name: SonarCloud scan
+          no_output_timeout: 25m
+          command: |
             /tmp/sonar-scanner-5.0.1.3006-linux/bin/sonar-scanner \
-              -Dsonar.token=$SONAR_TOKEN
+              -Dsonar.token=$SONAR_TOKEN \
+              -Dsonar.verbose=false 2>&1 | tee /tmp/sonar.log
+            STATUS=${PIPESTATUS[0]}
+            if [ "$STATUS" -ne 0 ]; then
+              echo "===== Scanner exited with status $STATUS ====="
+              tail -100 /tmp/sonar.log
+              exit $STATUS
+            fi
 
   sca:
     docker:
